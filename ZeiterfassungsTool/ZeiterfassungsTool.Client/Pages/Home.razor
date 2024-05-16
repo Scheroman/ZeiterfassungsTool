@@ -1,0 +1,145 @@
+﻿@page "/"
+@using System.Timers
+@using ZeiterfassungsTool.Client.Data
+@inject IServiceManager saveManager
+
+<PageTitle>Home</PageTitle>
+
+<MudDataGrid T="ZeiterfassungsTask" Items="@tasks.Items" SortMode="SortMode.Multiple" QuickFilter="@_quickFilter"
+             Hideable="true" RowClick="@RowClicked" RowContextMenuClick="RowRightClicked" SelectedItemsChanged="@SelectedItemsChanged">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Zeiterfassung</MudText>
+        <MudSpacer />
+        <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        <MudSpacer />
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="popup.OpenPopup" />
+        <MudSpacer />
+        <MudButton OnClick="() => secondsTimer.Enabled = false">Stop Tracking</MudButton>
+
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.Name" SortBy="@_sortBy">
+           <CellTemplate>
+                @{
+                    ZeiterfassungsTask item = context.Item;
+                    if (!string.IsNullOrEmpty(item.Link))
+                    {
+                        <MudLink Href="@item.Link" Target="_blank">@item.Name</MudLink>
+                    } else
+                    {
+                        @item.Name
+                    }
+                }
+           </CellTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="@(x => x.Beginn.ToString("HH:mm"))" />
+        <PropertyColumn Property="@(x => x.End.ToString("HH:mm"))" />
+        <PropertyColumn Property="x => getTime(x)" Title="Dauer">
+            <FooterTemplate>
+                @(new DateTime(context.Items.Sum(x => (x.End - x.Beginn).Ticks)).ToString("HH:mm:ss"))
+            </FooterTemplate>
+        </PropertyColumn>
+
+    </Columns>
+    <PagerContent>
+        @* <MudDataGridPager T="Task" /> *@
+
+    </PagerContent>
+</MudDataGrid>
+
+<AddTaskToTimelinePopup @ref="popup" OnTaskAdded="addTaskToTimeline" />
+
+@code {
+
+
+
+    private ZeiterfassungsTaskListe tasks = new ZeiterfassungsTaskListe();
+    private string _searchString;
+    private bool _sortNameByLength;
+    private List<string> _events = new();
+    private Timer? secondsTimer;
+    private AddTaskToTimelinePopup popup;
+
+    // custom sort by name length
+    private Func<ZeiterfassungsTask, object> _sortBy => x =>
+    {
+        if (_sortNameByLength)
+            return x.Name.Length;
+        else
+            return x.Name;
+    };
+    // quick filter - filter globally across multiple columns with the same input
+    private Func<ZeiterfassungsTask, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        // if (x.Sign.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+        //     return true;
+
+        if (x.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        tasks = await saveManager.LoadTimelineTasks();
+
+        secondsTimer = new Timer(1000);
+        secondsTimer.Enabled = true;
+        secondsTimer.AutoReset = true;
+        secondsTimer.Elapsed += (sender, e) => updateCurrent();
+    }
+
+
+    // events
+    void RowClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+        _events.Insert(0, $"Event = RowClick, Index = {args.RowIndex}, Data = {System.Text.Json.JsonSerializer.Serialize(args.Item)}");
+    }
+
+    void RowRightClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+        _events.Insert(0, $"Event = RowRightClick, Index = {args.RowIndex}, Data = {System.Text.Json.JsonSerializer.Serialize(args.Item)}");
+    }
+
+    void SelectedItemsChanged(HashSet<ZeiterfassungsTask> items)
+    {
+        _events.Insert(0, $"Event = SelectedItemsChanged, Data = {System.Text.Json.JsonSerializer.Serialize(items)}");
+    }
+
+    void updateCurrent()
+    {
+        if (tasks.Items.Count == 0)
+        {
+            return;
+        }
+
+        tasks.Items.Last().End = DateTime.Now;
+        InvokeAsync(() =>
+     {
+         StateHasChanged();
+     });
+    }
+
+    private string getTime(ZeiterfassungsTask t)
+    {
+        return new DateTime((t.End - t.Beginn).Ticks).ToString("HH:mm");
+    }
+
+    private async Task addTaskToTimeline(ZeiterfassungsTask task)
+    {
+        // update last
+        ZeiterfassungsTask newTask = new ZeiterfassungsTask(task);
+        newTask.Beginn = DateTime.Now;
+        newTask.End = DateTime.Now;
+        tasks = await saveManager.AddTimelineTask(newTask, tasks.Last());
+        StateHasChanged();
+    }
+}
+

@@ -1,0 +1,89 @@
+﻿@using ZeiterfassungsTool.Client.Data
+
+<MudPopover Open="@open" Fixed="true" Class="Popup px-4 pt-4">
+    <MudCard Style="width: 500px">
+        <MudForm Model="@task">
+            <MudCardContent>
+
+                <MudText>@(this.update ? "Task ändern" : "Task erstellen")</MudText>
+                <MudTextField @bind-Value="task.Name"
+                              For="@(() => task.Name)"
+                              Immediate="true"
+                              Label="Name" />
+            </MudCardContent>
+        </MudForm>
+        <MudCardActions Style="float: right">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="ml-auto" OnClick="@(async () => abbrechen())">Abbrechen</MudButton>
+            @if (!update)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await erstellen())">Erstellen</MudButton>
+            } else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto" OnClick="@(async () => await aendern())">Ändern</MudButton>
+            }
+        </MudCardActions>
+    </MudCard>
+</MudPopover>
+
+<style>
+    .Popup {
+        justify-content: center;
+        display: flex;
+        width: 100%;
+        background-color: rgba(0, 0, 0, 0);
+        box-shadow: none;
+    }
+
+    .mud-button-root + .mud-button-root {
+        margin-left: 10px !important;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback<ZeiterfassungsTask> OnTaskCreated { get; set; }
+    [Parameter]
+    public EventCallback<ZeiterfassungsTask> OnTaskUpdated { get; set; }
+
+    private bool open { get; set; }
+    private bool update = false;
+
+    private ZeiterfassungsTask task = new ZeiterfassungsTask();
+
+    private async Task erstellen()
+    {
+        await OnTaskCreated.InvokeAsync(task);
+        close();
+    }
+
+    private void abbrechen()
+    {
+        close();
+    }
+
+    private async Task aendern()
+    {
+        await OnTaskUpdated.InvokeAsync(task);
+        close();
+    }
+
+    public void OpenPopup()
+    {
+        open = true;
+        StateHasChanged();
+    }
+
+    public void OpenPopup(ZeiterfassungsTask task)
+    {
+        update = open = true;
+        this.task = task;
+        StateHasChanged();
+    }
+
+    private void close()
+    {
+        open = false;
+        task = new ZeiterfassungsTask();
+        update = false;
+    }
+}

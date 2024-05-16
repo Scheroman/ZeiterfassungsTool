@@ -1,0 +1,106 @@
+﻿@page "/tasks"
+@using ZeiterfassungsTool.Client.Components
+@using ZeiterfassungsTool.Client.Data
+@inject IServiceManager saveManager
+
+
+<PageTitle>Tasks</PageTitle>
+
+<MudDataGrid T="ZeiterfassungsTask" Items="@taskListe.Items" SortMode="SortMode.Multiple" QuickFilter="@_quickFilter"
+             Hideable="true" RowClick="@RowClicked" RowContextMenuClick="RowRightClicked" SelectedItemsChanged="@SelectedItemsChanged">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Tasks</MudText>
+        <MudSpacer />
+        <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+        <MudSpacer />
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="() => popup.OpenPopup()" />
+        <MudSpacer />
+
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.Name" SortBy="@_sortBy" />
+        <TemplateColumn CellClass="d-flex justify-end">
+            <CellTemplate>
+                <MudStack Row>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="edit" Color="Color.Primary" OnClick="() => popup.OpenPopup(context.Item)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" aria-label="delete" Color="Color.Secondary" OnClick="() => removeTask(context.Item)" />
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+
+    </Columns>
+</MudDataGrid>
+
+<AddTaskPopup @ref="this.popup" OnTaskCreated="onTaskCreated" OnTaskUpdated="onTaskUpdated"/>
+
+@code {
+    private ZeiterfassungsTaskListe taskListe = new ZeiterfassungsTaskListe();
+    private string _searchString;
+    private bool _sortNameByLength;
+    private List<string> _events = new();
+    private bool addTask = false;
+    private AddTaskPopup popup;
+
+    protected override async Task OnInitializedAsync()
+    {
+        taskListe = await saveManager.LoadZeiterfassungsTaskListe();
+        StateHasChanged();
+    }
+
+    // custom sort by name length
+    private Func<ZeiterfassungsTask, object> _sortBy => x =>
+    {
+        if (_sortNameByLength)
+            return x.Name.Length;
+        else
+            return x.Name;
+    };
+    // quick filter - filter globally across multiple columns with the same input
+    private Func<ZeiterfassungsTask, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        // if (x.Sign.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+        //     return true;
+
+        if (x.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    };
+
+    // events
+    void RowClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+        _events.Insert(0, $"Event = RowClick, Index = {args.RowIndex}, Data = {System.Text.Json.JsonSerializer.Serialize(args.Item)}");
+    }
+
+    void RowRightClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+        _events.Insert(0, $"Event = RowRightClick, Index = {args.RowIndex}, Data = {System.Text.Json.JsonSerializer.Serialize(args.Item)}");
+    }
+
+    void SelectedItemsChanged(HashSet<ZeiterfassungsTask> items)
+    {
+        _events.Insert(0, $"Event = SelectedItemsChanged, Data = {System.Text.Json.JsonSerializer.Serialize(items)}");
+    }
+
+    private async Task onTaskCreated(ZeiterfassungsTask task)
+    {
+        task.ParseName();
+        taskListe = await saveManager.AddZeiterfassungsTask(task);
+    }
+
+    private async Task onTaskUpdated(ZeiterfassungsTask task)
+    {
+        taskListe = await saveManager.UpdateZeiterfassungsTask(task);
+    }
+
+    private async Task removeTask(ZeiterfassungsTask task)
+    {
+        taskListe = await saveManager.DeleteZeiterfassungsTask(task);
+    }
+
+}

@@ -1,0 +1,102 @@
+﻿@using ZeiterfassungsTool.Client.Data
+@inject IServiceManager saveManager
+
+<MudPopover Open="@open" Fixed="true" Class="Popup px-4 pt-4">
+    <MudCard Style="width: 500px">
+        <MudDataGrid T="ZeiterfassungsTask" Items="@taskListe.Items" SortMode="SortMode.Multiple" QuickFilter="@_quickFilter"
+                     Hideable="true" RowClick="@RowClicked" RowContextMenuClick="RowRightClicked" SelectedItemsChanged="@SelectedItemsChanged">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Tasks</MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" Immediate="true"
+                              AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+
+            </ToolBarContent>
+            <Columns>
+                <PropertyColumn Property="x => x.Name" SortBy="@_sortBy" />
+            </Columns>
+        </MudDataGrid>
+        <MudCardActions Style="float: right">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="ml-auto" OnClick="@(async () => close())">Abbrechen</MudButton>
+        </MudCardActions>
+    </MudCard>
+</MudPopover>
+
+
+<style>
+    .Popup {
+        justify-content: center;
+        display: flex;
+        width: 100%;
+        background-color: rgba(0, 0, 0, 0);
+        box-shadow: none;
+    }
+
+    .mud-button-root + .mud-button-root {
+        margin-left: 10px !important;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback<ZeiterfassungsTask> OnTaskAdded { get; set; }
+    private ZeiterfassungsTaskListe taskListe = new ZeiterfassungsTaskListe();
+
+    private bool open { get; set; } = false;
+    private string _searchString;
+    private bool _sortNameByLength;
+ 
+
+    // custom sort by name length
+    private Func<ZeiterfassungsTask, object> _sortBy => x =>
+    {
+        if (_sortNameByLength)
+            return x.Name.Length;
+        else
+            return x.Name;
+    };
+
+    // quick filter - filter globally across multiple columns with the same input
+    private Func<ZeiterfassungsTask, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        // if (x.Sign.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+        //     return true;
+
+        if (x.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    };
+
+    // events
+    async Task RowClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+        await OnTaskAdded.InvokeAsync(args.Item.Copy());
+        close();
+    }
+  
+    void RowRightClicked(DataGridRowClickEventArgs<ZeiterfassungsTask> args)
+    {
+       
+    }
+
+    void SelectedItemsChanged(HashSet<ZeiterfassungsTask> items)
+    {
+        
+    }
+
+    public async Task OpenPopup()
+    {
+        open = true;
+        taskListe = await saveManager.LoadZeiterfassungsTaskListe();
+        StateHasChanged();
+    }
+
+    private void close()
+    {
+        open = false;
+    }
+}
